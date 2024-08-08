@@ -21,7 +21,7 @@ export class TransactionService {
   ): Promise<TransactionEntity> {
     const lastTransaction = await this.getLastTransaction();
     const balance = lastTransaction.balance + createTransactionDto.amount;
-    const date = moment().format('YYYY-MM-DD');
+    const date = moment().format();
     const newTransaction = await this.transactionDBService.create({
       id: generateRandomId(10),
       amount: createTransactionDto.amount,
@@ -59,6 +59,9 @@ export class TransactionService {
       recentTransaction || { balance: 0 },
       0,
     );
+    if (recentTransaction) {
+      recentTransaction.balance = Number(recentTransaction.balance);
+    }
     return recentTransaction || ({ balance: 0 } as TransactionEntity);
   }
 }
