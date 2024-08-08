@@ -14,6 +14,7 @@ import {
   DialogContent,
   DialogTitle,
   FormControl,
+  FormHelperText,
   IconButton,
   Table,
   TableBody,
@@ -29,6 +30,7 @@ import { useTheme } from "@mui/material/styles";
 import moment from "moment";
 import { getTransactions, saveTransaction } from "../services/api";
 import Title from "./Title";
+import { IBAN_REGEX } from "../utils/string";
 
 const dialogTitle = {
   deposit: "Deposit",
@@ -119,6 +121,10 @@ export default function Transitions() {
   const [amount, setAmount] = React.useState(0);
   const [sortOrder, setSortOrder] = React.useState("desc");
   const [transactionType, setTransactionType] = React.useState(null);
+  const [accountAddress, setAccountAddress] = React.useState({
+    value: "",
+    error: "",
+  });
 
   const handleChangePage = (_event, newPage) => {
     setPage(newPage);
@@ -155,11 +161,30 @@ export default function Transitions() {
           transactionType === "deposit" ? Number(amount) : -1 * Number(amount),
       });
       setTransactions([newTransaction, ...transactions]);
+    } else {
+      const test_result = IBAN_REGEX.test(accountAddress.value);
+      console.log({ test_result });
+      if (!accountAddress.value) {
+        setAccountAddress({ value: "", error: "Account required" });
+        setSaving(false);
+        return;
+      } else if (!IBAN_REGEX.test(accountAddress.value)) {
+        setAccountAddress({
+          value: accountAddress.value,
+          error: "Invalid account",
+        });
+        setSaving(false);
+        return;
+      }
     }
 
     setShowModal(false);
     setSaving(false);
     setAmount(0);
+    setAccountAddress({
+      value: "",
+      error: "",
+    });
   };
 
   React.useEffect(() => {
@@ -190,7 +215,7 @@ export default function Transitions() {
             Withdrawal
           </Button>
           <Button onClick={() => handleNewTransactionClick("transfer")}>
-            Withdrawal
+            Transfer
           </Button>
         </ButtonGroup>
       </Box>
@@ -257,7 +282,31 @@ export default function Transitions() {
           {dialogTitle[transactionType]}
         </DialogTitle>
         <DialogContent>
-          <Box sx={{ paddingY: 2 }}>
+          {transactionType === "transfer" && (
+            <Box sx={{ paddingY: 2, flex: 1 }}>
+              <FormControl>
+                <TextField
+                  id="account"
+                  label="IBAN Account"
+                  variant="outlined"
+                  value={accountAddress.value}
+                  onChange={(e) =>
+                    setAccountAddress({
+                      value: e.target.value,
+                      error: "",
+                    })
+                  }
+                  error={!!accountAddress.error}
+                />
+                {accountAddress.error && (
+                  <FormHelperText error={!!accountAddress.error}>
+                    {accountAddress.error}
+                  </FormHelperText>
+                )}
+              </FormControl>
+            </Box>
+          )}
+          <Box sx={{ paddingY: 2, flex: 1 }}>
             <FormControl>
               <TextField
                 id="amount"
