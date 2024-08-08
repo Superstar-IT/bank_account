@@ -1,3 +1,8 @@
+import * as React from "react";
+import FirstPageIcon from "@mui/icons-material/FirstPage";
+import KeyboardArrowLeft from "@mui/icons-material/KeyboardArrowLeft";
+import KeyboardArrowRight from "@mui/icons-material/KeyboardArrowRight";
+import LastPageIcon from "@mui/icons-material/LastPage";
 import LoadingButton from "@mui/lab/LoadingButton";
 import {
   Box,
@@ -9,6 +14,7 @@ import {
   DialogContent,
   DialogTitle,
   FormControl,
+  IconButton,
   Table,
   TableBody,
   TableCell,
@@ -19,9 +25,16 @@ import {
   TableSortLabel,
   TextField,
 } from "@mui/material";
-import * as React from "react";
+import { useTheme } from "@mui/material/styles";
+import moment from "moment";
 import { getTransactions, saveTransaction } from "../services/api";
 import Title from "./Title";
+
+const dialogTitle = {
+  deposit: "Deposit",
+  withdrawal: "Withdrawal",
+  transfer: "transfer",
+};
 
 function descendingComparator(a, b, orderBy) {
   if (b[orderBy] < a[orderBy]) {
@@ -33,6 +46,68 @@ function descendingComparator(a, b, orderBy) {
   return 0;
 }
 
+function TablePaginationActions(props) {
+  const theme = useTheme();
+  const { count, page, rowsPerPage, onPageChange } = props;
+
+  const handleFirstPageButtonClick = (event) => {
+    onPageChange(event, 0);
+  };
+
+  const handleBackButtonClick = (event) => {
+    onPageChange(event, page - 1);
+  };
+
+  const handleNextButtonClick = (event) => {
+    onPageChange(event, page + 1);
+  };
+
+  const handleLastPageButtonClick = (event) => {
+    onPageChange(event, Math.max(0, Math.ceil(count / rowsPerPage) - 1));
+  };
+
+  return (
+    <Box sx={{ flexShrink: 0, ml: 2.5 }}>
+      <IconButton
+        onClick={handleFirstPageButtonClick}
+        disabled={page === 0}
+        aria-label="first page"
+      >
+        {theme.direction === "rtl" ? <LastPageIcon /> : <FirstPageIcon />}
+      </IconButton>
+      <IconButton
+        onClick={handleBackButtonClick}
+        disabled={page === 0}
+        aria-label="previous page"
+      >
+        {theme.direction === "rtl" ? (
+          <KeyboardArrowRight />
+        ) : (
+          <KeyboardArrowLeft />
+        )}
+      </IconButton>
+      <IconButton
+        onClick={handleNextButtonClick}
+        disabled={page >= Math.ceil(count / rowsPerPage) - 1}
+        aria-label="next page"
+      >
+        {theme.direction === "rtl" ? (
+          <KeyboardArrowLeft />
+        ) : (
+          <KeyboardArrowRight />
+        )}
+      </IconButton>
+      <IconButton
+        onClick={handleLastPageButtonClick}
+        disabled={page >= Math.ceil(count / rowsPerPage) - 1}
+        aria-label="last page"
+      >
+        {theme.direction === "rtl" ? <FirstPageIcon /> : <LastPageIcon />}
+      </IconButton>
+    </Box>
+  );
+}
+
 export default function Transitions() {
   const [page, setPage] = React.useState(0);
   const [rowsPerPage, setRowsPerPage] = React.useState(10);
@@ -40,10 +115,10 @@ export default function Transitions() {
   const [transactions, setTransactions] = React.useState([]);
   const [loading, setLoading] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
-  const [isDeposit, setIsDeposit] = React.useState(false);
   const [showModal, setShowModal] = React.useState(false);
   const [amount, setAmount] = React.useState(0);
   const [sortOrder, setSortOrder] = React.useState("desc");
+  const [transactionType, setTransactionType] = React.useState(null);
 
   const handleChangePage = (_event, newPage) => {
     setPage(newPage);
@@ -62,21 +137,26 @@ export default function Transitions() {
   };
 
   const handleNewTransactionClick = (change) => {
-    setIsDeposit(change);
+    setTransactionType(change);
     setShowModal(true);
   };
 
   const handleCloseModal = () => {
     setAmount(0);
     setShowModal(false);
+    setTransactionType(null);
   };
 
   const handleSaveClick = async () => {
     setSaving(true);
-    const newTransaction = await saveTransaction({
-      amount: isDeposit ? Number(amount) : -1 * Number(amount),
-    });
-    setTransactions([newTransaction, ...transactions]);
+    if (transactionType !== "transfer") {
+      const newTransaction = await saveTransaction({
+        amount:
+          transactionType === "deposit" ? Number(amount) : -1 * Number(amount),
+      });
+      setTransactions([newTransaction, ...transactions]);
+    }
+
     setShowModal(false);
     setSaving(false);
     setAmount(0);
@@ -103,10 +183,13 @@ export default function Transitions() {
       <Box sx={{ display: "flex", justifyContent: "space-between" }}>
         <Title>Recent Transitions</Title>
         <ButtonGroup variant="contained">
-          <Button onClick={() => handleNewTransactionClick(true)}>
+          <Button onClick={() => handleNewTransactionClick("deposit")}>
             Deposit
           </Button>
-          <Button onClick={() => handleNewTransactionClick(false)}>
+          <Button onClick={() => handleNewTransactionClick("withdrawal")}>
+            Withdrawal
+          </Button>
+          <Button onClick={() => handleNewTransactionClick("transfer")}>
             Withdrawal
           </Button>
         </ButtonGroup>
@@ -138,7 +221,9 @@ export default function Transitions() {
               <TableBody>
                 {visibleRows.map((transaction) => (
                   <TableRow key={transaction.id}>
-                    <TableCell align="center">{transaction.date}</TableCell>
+                    <TableCell align="center">
+                      {moment(transaction.date).format("DD.MM.YYYY")}
+                    </TableCell>
                     <TableCell align="center">
                       {transaction.amount < 0
                         ? transaction.amount
@@ -158,6 +243,7 @@ export default function Transitions() {
             page={page}
             onPageChange={handleChangePage}
             onRowsPerPageChange={handleChangeRowsPerPage}
+            ActionsComponent={TablePaginationActions}
           ></TablePagination>
         </>
       )}
@@ -168,7 +254,7 @@ export default function Transitions() {
         aria-describedby="alert-dialog-description"
       >
         <DialogTitle id="alert-dialog-title">
-          {isDeposit ? "Deposit" : "Withdrawal"}
+          {dialogTitle[transactionType]}
         </DialogTitle>
         <DialogContent>
           <Box sx={{ paddingY: 2 }}>
@@ -188,12 +274,11 @@ export default function Transitions() {
           <LoadingButton
             autoFocus
             loading={saving}
-            // loadingPosition="start"
             variant="contained"
             onClick={handleSaveClick}
             disabled={!amount}
           >
-            {isDeposit ? "Deposit" : "Withdrawal"}
+            {dialogTitle[transactionType]}
           </LoadingButton>
         </DialogActions>
       </Dialog>
