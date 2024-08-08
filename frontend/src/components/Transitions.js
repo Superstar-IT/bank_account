@@ -1,4 +1,3 @@
-import * as React from "react";
 import FirstPageIcon from "@mui/icons-material/FirstPage";
 import KeyboardArrowLeft from "@mui/icons-material/KeyboardArrowLeft";
 import KeyboardArrowRight from "@mui/icons-material/KeyboardArrowRight";
@@ -14,8 +13,12 @@ import {
   DialogContent,
   DialogTitle,
   FormControl,
+  FormGroup,
   FormHelperText,
+  FormLabel,
   IconButton,
+  MenuItem,
+  Select,
   Table,
   TableBody,
   TableCell,
@@ -28,9 +31,10 @@ import {
 } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import moment from "moment";
+import * as React from "react";
 import { getTransactions, saveTransaction } from "../services/api";
-import Title from "./Title";
 import { IBAN_REGEX } from "../utils/string";
+import Title from "./Title";
 
 const dialogTitle = {
   deposit: "Deposit",
@@ -125,6 +129,11 @@ export default function Transitions() {
     value: "",
     error: "",
   });
+  const [filter, setFilter] = React.useState({
+    type: "all",
+    startDate: "",
+    endDate: "",
+  });
 
   const handleChangePage = (_event, newPage) => {
     setPage(newPage);
@@ -162,8 +171,6 @@ export default function Transitions() {
       });
       setTransactions([newTransaction, ...transactions]);
     } else {
-      const test_result = IBAN_REGEX.test(accountAddress.value);
-      console.log({ test_result });
       if (!accountAddress.value) {
         setAccountAddress({ value: "", error: "Account required" });
         setSaving(false);
@@ -187,20 +194,71 @@ export default function Transitions() {
     });
   };
 
+  const handleFilterChange = (e) => {
+    const { name, value } = e.target;
+    console.log({
+      start: filter.startDate > value,
+      end: filter.endDate > value,
+    });
+    if (
+      name === "startDate" &&
+      value &&
+      filter.endDate &&
+      filter.endDate < value
+    ) {
+      setFilter({ ...filter, startDate: filter.endDate, endDate: value });
+    } else if (
+      name === "endDate" &&
+      value &&
+      filter.startDate &&
+      filter.startDate > value
+    ) {
+      setFilter({ ...filter, endDate: filter.startDate, startDate: value });
+    } else {
+      setFilter({ ...filter, [name]: value });
+    }
+  };
+
   React.useEffect(() => {
     loadTransactions();
   }, []);
 
-  const visibleRows = React.useMemo(
+  const filteredRows = React.useMemo(
     () =>
       transactions
+        .filter((transaction) => {
+          let result = true;
+          if (filter.type === "deposit") {
+            result = transaction.amount > 0;
+          } else if (filter.type === "withdrawal") {
+            result = transaction.amount < 0;
+          }
+
+          if (filter.startDate) {
+            result =
+              transaction.date >=
+              moment(filter.startDate).startOf("date").format();
+          }
+
+          if (filter.endDate) {
+            result =
+              transaction.date <= moment(filter.endDate).endOf("date").format();
+          }
+
+          return result;
+        })
         .sort(
           sortOrder === "desc"
             ? (a, b) => descendingComparator(a, b, "date")
             : (a, b) => -descendingComparator(a, b, "date")
-        )
-        .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage),
-    [sortOrder, page, rowsPerPage, transactions]
+        ),
+    [sortOrder, filter, transactions]
+  );
+
+  const visibleRows = React.useMemo(
+    () =>
+      filteredRows.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage),
+    [filteredRows, page, rowsPerPage]
   );
 
   return (
@@ -218,6 +276,46 @@ export default function Transitions() {
             Transfer
           </Button>
         </ButtonGroup>
+      </Box>
+      <Box sx={{ display: "flex", gap: 1 }}>
+        <FormGroup sx={{ flexDirection: "row", alignItems: "center" }}>
+          <FormLabel sx={{ marginRight: 1 }}>Type: </FormLabel>
+          <FormControl sx={{ minWidth: 130 }}>
+            <Select
+              labelId="demo-simple-select-label"
+              id="demo-simple-select"
+              value={filter.type}
+              name="type"
+              onChange={handleFilterChange}
+            >
+              <MenuItem value={"all"}>All</MenuItem>
+              <MenuItem value={"deposit"}>Deposit</MenuItem>
+              <MenuItem value={"withdrawal"}>Withdrawal</MenuItem>
+            </Select>
+          </FormControl>
+        </FormGroup>
+        <FormGroup sx={{ flexDirection: "row", alignItems: "center" }}>
+          <FormLabel sx={{ marginRight: 1 }}>From: </FormLabel>
+          <FormControl>
+            <TextField
+              type="date"
+              name="startDate"
+              value={filter.startDate}
+              onChange={handleFilterChange}
+            />
+          </FormControl>
+        </FormGroup>
+        <FormGroup sx={{ flexDirection: "row", alignItems: "center" }}>
+          <FormLabel sx={{ marginRight: 1 }}>To: </FormLabel>
+          <FormControl>
+            <TextField
+              type="date"
+              name="endDate"
+              onChange={handleFilterChange}
+              value={filter.endDate}
+            />
+          </FormControl>
+        </FormGroup>
       </Box>
       {loading ? (
         <Box sx={{ display: "flex", justifyContent: "center" }}>
@@ -263,7 +361,7 @@ export default function Transitions() {
           <TablePagination
             rowsPerPageOptions={[5, 10, 25, 100]}
             component="div"
-            count={transactions.length}
+            count={filteredRows.length}
             rowsPerPage={rowsPerPage}
             page={page}
             onPageChange={handleChangePage}
